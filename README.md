@@ -4,7 +4,15 @@ org2ip-asn finds the IPv4 ranges and ASNs belonging to an organization.
 
 ## Install
 
+1. Run the following command:
+```
     go install github.com/blue-pho3nix/org2ip-asn@latest
+```
+2. Add the following to your `.zshrc` or `.bashrc` 
+```
+export PATH=$HOME/go/bin:$PATH
+```
+3. Restart your terminal.
 
 ## Usage
 1. Go to https://dnschecker.org/ and get your org from an in scope domain
