@@ -17,7 +17,7 @@ org2ip-asn finds the IPv4 ranges and ASNs belonging to an organization.
 </details>
 
 
-2. Run `org2ip-asn
+2. Run `org2ip-asn`
 ```
     org2ip-asn <org-name>
     org2ip-asn "IBM"
