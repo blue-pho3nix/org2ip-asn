@@ -53,6 +53,7 @@ both work.
 
 - Queries bgp.he.net and CAIDA AS Rank to find organization ASNs and extract their corresponding IP ranges.
 - The organization name must match exactly, and is matched against the organization, not the AS name.
+- Does not save empty ASNs (no IPv4 ranges) to a file. 
 
 <details>
   <summary>Image</summary>
