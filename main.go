@@ -550,16 +550,27 @@ var banner = []string{
 }
 
 /*
-printBanner writes the logo to stderr, and only when stderr is a terminal, so
-that redirecting output to a file leaves no escape sequences in it. NO_COLOR
-suppresses it entirely.
+useColor is true only when stderr is a terminal and NO_COLOR is unset, so
+redirecting output to a file leaves no escape sequences in it.
 */
-func printBanner() {
+var useColor = func() bool {
 	if os.Getenv("NO_COLOR") != "" {
-		return
+		return false
 	}
 	info, err := os.Stderr.Stat()
-	if err != nil || info.Mode()&os.ModeCharDevice == 0 {
+	return err == nil && info.Mode()&os.ModeCharDevice != 0
+}()
+
+// blue highlights a label, or returns it unchanged when colour is off.
+func blue(s string) string {
+	if !useColor {
+		return s
+	}
+	return "\033[94m" + s + "\033[0m"
+}
+
+func printBanner() {
+	if !useColor {
 		return
 	}
 	for _, l := range banner {
@@ -632,7 +643,50 @@ func main() {
 	}
 
 	client := &http.Client{Timeout: 30 * time.Second}
-	found := map[string]caidaRow{} // asn -> best known detail
+
+	seenASN := map[string]caidaRow{}
+	seenPfx := map[string]bool{}
+	var rows []prefixRow
+
+	/*
+		addASN records an ASN and, if it is new, immediately fetches its
+		prefixes from he.net. Doing it here rather than in a second pass means
+		an ASN that only CAIDA knows about gets its ranges straight away, and
+		every prefix is printed as it is found.
+	*/
+	addASN := func(r caidaRow) {
+		if cur, ok := seenASN[r.asn]; ok {
+			if cur.org == "" && r.org != "" {
+				seenASN[r.asn] = r // keep the richer record
+			}
+			fmt.Fprintf(os.Stderr, "      %-12s %-24s %s (dup)\n", r.asn, r.asnName, r.org)
+			return
+		}
+		seenASN[r.asn] = r
+		fmt.Fprintf(os.Stderr, "      %-12s %-24s %s\n", r.asn, r.asnName, r.org)
+
+		time.Sleep(delay)
+		added, dup, skipped := 0, 0, 0
+		for _, p := range prefixesFromASN(fetch(client, heBase+"/"+r.asn)) {
+			// A row naming someone else is another company's space announced
+			// by this ASN. Blank descriptions are kept.
+			if !(p.desc == "" || matches(p.desc, needles)) {
+				skipped++
+				continue
+			}
+			if seenPfx[p.prefix] {
+				fmt.Fprintf(os.Stderr, "        %-20s (dup)\n", p.prefix)
+				dup++
+				continue
+			}
+			seenPfx[p.prefix] = true
+			rows = append(rows, p)
+			fmt.Fprintf(os.Stderr, "        %s\n", p.prefix)
+			added++
+		}
+		fmt.Fprintf(os.Stderr, "        %d new, %d dup, %d not this org\n",
+			added, dup, skipped)
+	}
 
 	for i, term := range terms {
 		if i > 0 {
@@ -640,83 +694,59 @@ func main() {
 		}
 		fmt.Fprintf(os.Stderr, "[*] searching %q\n", term)
 
+		// Filter each page by this term alone. Matching against every name
+		// would report the same total on every search, since he.net returns
+		// much the same rows whichever spelling is queried.
+		only := needles[i : i+1]
+
 		// bgp.he.net
 		u := heBase + "/search?search%5Bsearch%5D=" + url.QueryEscape(term) + "&commit=Search"
-		he := asnsFromHE(fetch(client, u), needles)
+		he := asnsFromHE(fetch(client, u), only)
+		fmt.Fprintf(os.Stderr, "    %s: %d ASNs\n", blue("bgp.he.net"), len(he))
 		for _, a := range he {
-			if _, ok := found[a]; !ok {
-				found[a] = caidaRow{asn: a}
-			}
+			addASN(caidaRow{asn: a, org: term})
 		}
-		fmt.Fprintf(os.Stderr, "    bgp.he.net: %d ASNs\n", len(he))
 
 		// CAIDA AS Rank
-		rows := asnsFromCAIDA(client, term, needles)
-		fmt.Fprintf(os.Stderr, "    CAIDA: %d ASNs\n", len(rows))
-
-		// expand every organization those rows belong to
+		caida := asnsFromCAIDA(client, term, only)
+		fmt.Fprintf(os.Stderr, "    %s: %d ASNs\n", blue("CAIDA"), len(caida))
 		var orgIDs []string
 		seenOrg := map[string]bool{}
-		for _, r := range rows {
-			if cur, ok := found[r.asn]; !ok || cur.org == "" {
-				found[r.asn] = r
-			}
+		for _, r := range caida {
+			addASN(r)
 			if r.orgID != "" && !seenOrg[r.orgID] {
 				seenOrg[r.orgID] = true
 				orgIDs = append(orgIDs, r.orgID)
 			}
 		}
+
+		// every ASN under the organizations those rows belong to
 		for _, id := range orgIDs {
-			added := 0
-			for _, m := range orgMembers(client, id) {
-				if cur, ok := found[m.asn]; !ok || cur.org == "" {
-					if !ok {
-						added++
-					}
-					found[m.asn] = m
+			members := orgMembers(client, id)
+			fresh := 0
+			for _, m := range members {
+				if _, ok := seenASN[m.asn]; !ok {
+					fresh++
 				}
 			}
-			if added > 0 {
-				fmt.Fprintf(os.Stderr, "    org expansion: +%d ASNs\n", added)
+			fmt.Fprintf(os.Stderr, "    %s: %d ASNs, %d new\n",
+				blue("org expansion"), len(members), fresh)
+			for _, m := range members {
+				addASN(m)
 			}
 		}
 	}
 
-	if len(found) == 0 {
+	if len(seenASN) == 0 {
 		fmt.Fprintln(os.Stderr, "[!] no ASNs matched")
 		os.Exit(1)
 	}
 
-	asns := make([]string, 0, len(found))
-	for a := range found {
+	asns := make([]string, 0, len(seenASN))
+	for a := range seenASN {
 		asns = append(asns, a)
 	}
 	sort.Slice(asns, func(i, j int) bool { return asnNum(asns[i]) < asnNum(asns[j]) })
-
-	fmt.Fprintf(os.Stderr, "[*] %d ASNs\n", len(asns))
-	for _, a := range asns {
-		r := found[a]
-		fmt.Fprintf(os.Stderr, "      %-12s %-24s %s\n", a, r.asnName, r.org)
-	}
-
-	// prefixes
-	var rows []prefixRow
-	seen := map[string]bool{}
-	for i, asn := range asns {
-		if i > 0 {
-			time.Sleep(delay)
-		}
-		fmt.Fprintf(os.Stderr, "[*] %s (%d/%d)\n", asn, i+1, len(asns))
-		for _, p := range prefixesFromASN(fetch(client, heBase+"/"+asn)) {
-			// A row naming someone else is another company's space announced
-			// by this ASN. Blank descriptions are kept.
-			if seen[p.prefix] || !(p.desc == "" || matches(p.desc, needles)) {
-				continue
-			}
-			seen[p.prefix] = true
-			rows = append(rows, p)
-		}
-	}
 
 	sort.Slice(rows, func(i, j int) bool {
 		a, b := rows[i].ipnet, rows[j].ipnet
@@ -732,6 +762,8 @@ func main() {
 	for _, r := range rows {
 		prefixes = append(prefixes, r.prefix)
 	}
+
+	fmt.Fprintf(os.Stderr, "[*] %d ASNs, %d prefixes\n", len(asns), len(prefixes))
 
 	stem := slug(terms[0])
 	writeLines(stem+"-asns.txt", asns)
