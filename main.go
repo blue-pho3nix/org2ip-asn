@@ -37,7 +37,7 @@ const (
 	userAgent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 " +
 		"(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
 	heBase  = "https://bgp.he.net"
-	delay   = 1500 * time.Millisecond // between HE page fetches; HE throttles
+	delay   = 1500 * time.Millisecond 
 	retries = 4
 	maxASN  = 4294967295
 
@@ -47,8 +47,6 @@ const (
 )
 
 var challenge = []string{"Just a moment...", "cf_chl_opt", "Checking your browser"}
-
-// ------------------------------------------------------------------- http
 
 func fetch(client *http.Client, target string) string {
 	var why string
@@ -124,8 +122,6 @@ func caidaPost(client *http.Client, query string) []byte {
 	return raw
 }
 
-// ---------------------------------------------------------------- matching
-
 func matches(text string, needles []string) bool {
 	low := strings.ToLower(strings.TrimSpace(text))
 	for _, n := range needles {
@@ -165,8 +161,6 @@ func asnNum(a string) uint64 {
 	return n
 }
 
-// ------------------------------------------------------------ html parsing
-
 func lowered(s string) string {
 	l := strings.ToLower(s)
 	if len(l) != len(s) {
@@ -179,8 +173,6 @@ func isBoundary(b byte) bool {
 	return b == ' ' || b == '>' || b == '/' || b == '\t' || b == '\n' || b == '\r'
 }
 
-/* find every <tr>…</tr> (or whatever tag you ask for) in the HTML 
-and return what's between the opening and closing tags of each. */
 func elements(s, tag string) []string {
 	low := lowered(s)
 	open, closing := "<"+tag, "</"+tag
@@ -213,7 +205,6 @@ func elements(s, tag string) []string {
 	return out
 }
 
-// stripTags removes markup, unescapes entities, and collapses whitespace.
 func stripTags(s string) string {
 	var b strings.Builder
 	depth := 0
@@ -291,8 +282,6 @@ func links(s string) []link {
 	return out
 }
 
-// ---------------------------------------------------------------- ranges
-
 var reserved = func() []*net.IPNet {
 	blocks := []string{
 		"0.0.0.0/8", "10.0.0.0/8", "100.64.0.0/10", "127.0.0.0/8",
@@ -328,7 +317,6 @@ type prefixRow struct {
 	ipnet  *net.IPNet
 }
 
-// prefixesFromASN pulls public IPv4 ranges from ASN's bgp.he.net page.
 func prefixesFromASN(page string) []prefixRow {
 	var out []prefixRow
 	seen := map[string]bool{}
@@ -353,9 +341,6 @@ func prefixesFromASN(page string) []prefixRow {
 	return out
 }
 
-// ------------------------------------------------------------------ bgp.he.net ASNs
-
-// asnsFromHE pulls ASNs off a bgp.he.net search page whose description matches.
 func asnsFromHE(page string, needles []string) []string {
 	var out []string
 	for _, row := range elements(page, "tr") {
@@ -373,8 +358,6 @@ func asnsFromHE(page string, needles []string) []string {
 	}
 	return out
 }
-
-// ------------------------------------------------------------------- caida ASNs
 
 type caidaRow struct{ asn, asnName, org, orgID string }
 
@@ -399,7 +382,6 @@ type asnsResp struct {
 }
 
 
-// asnsFromCAIDA searches AS Rank by name, keeping rows whose organization matches.
 func asnsFromCAIDA(client *http.Client, term string, needles []string) []caidaRow {
 	var out []caidaRow
 	name, _ := json.Marshal(term)
@@ -459,8 +441,6 @@ type orgResp struct {
 	} `json:"errors"`
 }
 
-// orgMembers returns every ASN owned by one CAIDA organization, including
-// ones a name search misses, like SOFTLAYER under IBM.
 func orgMembers(client *http.Client, orgID string) []caidaRow {
 	id, _ := json.Marshal(orgID)
 	q := fmt.Sprintf(`{ organization(orgId: %s) { orgName members { asns `+
@@ -487,8 +467,6 @@ func orgMembers(client *http.Client, orgID string) []caidaRow {
 	}
 	return out
 }
-
-// ------------------------------------------------------------------ output
 
 func slug(text string) string {
 	var b strings.Builder
@@ -523,10 +501,7 @@ func writeLines(path string, lines []string) {
 	for _, l := range lines {
 		fmt.Fprintln(f, l)
 	}
-	fmt.Fprintf(os.Stderr, "[+] %d -> %s\n", len(lines), path)
 }
-
-// --------------------------------------------------------------------- main
 
 var banner = []string{
 	"\033[0;94;40m▄▄▄▄\033[0;37;40m \033[0;94;40m▄▄▄▄\033[0;37;40m \033[0;94;40m▄▄▄▄▄\033[0;37;40m \033[0;94;40m▄▄▄\033[0;34;40m \033[0;37;40m \033[0;94;40m▄▄\033[0;37;40m \033[0;94;40m▄▄▄▄\033[0;37;40m \033[0;34;40m    \033[0;37;40m \033[0;94;40m▄▄▄▄\033[0;37;40m \033[0;34;40m \033[0;94;40m▄▄▄\033[0;37;40m \033[0;94;40m▄▄▄▄\033[0m",
@@ -561,7 +536,6 @@ func printBanner() {
 	fmt.Fprintln(os.Stderr)
 }
 
-// stdinNames reads organization names one per line. 
 func stdinNames() []string {
 	info, err := os.Stdin.Stat()
 	if err != nil || info.Mode()&os.ModeCharDevice != 0 {
@@ -590,7 +564,7 @@ Examples:
 
 Queries for organization ASNs and extracts corresponding IP ranges.
 
-The organization name must match exactly, so "IBM" does not pull in IBM Cloud
+The organization name must match exactly. For example, "IBM" does not pull in IBM Cloud
 or IBM Deutschland GmbH.
 
 Writes <first-org>-asns.txt and <first-org>-ipv4.txt.
@@ -628,16 +602,14 @@ func main() {
 	otherOrg := map[string]int{}  
 	var rows []prefixRow
 
-    // addASN records an ASN and, if it is new, fetches its IP ranges from bgp.he.net.
 	addASN := func(r caidaRow) bool {
 		if cur, ok := seenASN[r.asn]; ok {
 			if cur.asnName == "" && r.asnName != "" {
-				seenASN[r.asn] = r 
+				seenASN[r.asn] = r
 			}
-			return false 
+			return false
 		}
 		seenASN[r.asn] = r
-
 		parts := []string{r.asn}
 		if r.asnName != "" {
 			parts = append(parts, r.asnName)
@@ -650,14 +622,13 @@ func main() {
 		time.Sleep(delay)
 		added, dup, skipped := 0, 0, 0
 		for _, p := range prefixesFromASN(fetch(client, heBase+"/"+r.asn)) {
-
 			if !(p.desc == "" || matches(p.desc, needles)) {
 				otherOrg[p.desc]++
 				skipped++
 				continue
 			}
 			if seenPfx[p.prefix] {
-				dup++ 
+				dup++
 				continue
 			}
 			seenPfx[p.prefix] = true
@@ -686,10 +657,9 @@ func main() {
 			time.Sleep(delay)
 		}
 		fmt.Fprintf(os.Stderr, "[*] searching %q\n", term)
-		
+
 		only := needles[i : i+1]
 
-		// bgp.he.net
 		u := heBase + "/search?search%5Bsearch%5D=" + url.QueryEscape(term) + "&commit=Search"
 		he := asnsFromHE(fetch(client, u), only)
 		fmt.Fprintf(os.Stderr, "    %s: %d ASNs\n", blue("bgp.he.net"), len(he))
@@ -701,7 +671,6 @@ func main() {
 		}
 		report(dupHE)
 
-		// CAIDA AS Rank
 		caida := asnsFromCAIDA(client, term, only)
 		fmt.Fprintf(os.Stderr, "    %s: %d ASNs\n", blue("CAIDA"), len(caida))
 		var orgIDs []string
@@ -743,7 +712,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Only ASNs that actually announce IPv4 space for this organization go in the file. 
 	asns := make([]string, 0, len(withPfx))
 	for a := range withPfx {
 		asns = append(asns, a)
@@ -765,18 +733,23 @@ func main() {
 		prefixes = append(prefixes, r.prefix)
 	}
 
-	fmt.Fprintf(os.Stderr, "[*] %d ASNs matched, %d announce IPv4, %d IP ranges\n",
-		len(seenASN), len(asns), len(prefixes))
+	stem := slug(terms[0])
+	asnFile, ipFile := stem+"-asns.txt", stem+"-ipv4.txt"
+	writeLines(asnFile, asns)
+	writeLines(ipFile, prefixes)
+
+	for _, p := range prefixes {
+		fmt.Println(p)
+	}
+
 	if len(otherOrg) > 0 {
 		type skip struct {
 			desc string
 			n    int
 		}
 		list := make([]skip, 0, len(otherOrg))
-		total := 0
 		for d, n := range otherOrg {
 			list = append(list, skip{d, n})
-			total += n
 		}
 		sort.Slice(list, func(i, j int) bool {
 			if list[i].n != list[j].n {
@@ -784,18 +757,14 @@ func main() {
 			}
 			return list[i].desc < list[j].desc
 		})
-		fmt.Fprintf(os.Stderr, "[*] %d ranges skipped under %d other names:\n",
-			total, len(list))
+		fmt.Fprintf(os.Stderr,
+			"[*] Skipped %d other names. Check them out and add applicable ones to your next list:\n",
+			len(list))
 		for _, k := range list {
 			fmt.Fprintf(os.Stderr, "      %4d  %s\n", k.n, k.desc)
 		}
 	}
-
-	stem := slug(terms[0])
-	writeLines(stem+"-asns.txt", asns)
-	writeLines(stem+"-ipv4.txt", prefixes)
-
-	for _, p := range prefixes {
-		fmt.Println(p)
-	}
+	
+	fmt.Fprintf(os.Stderr, "[*] Found %d IP ranges and %d ASNs\n", len(prefixes), len(asns))
+	fmt.Fprintf(os.Stderr, "[*] Check your %s and %s\n", asnFile, ipFile)
 }
