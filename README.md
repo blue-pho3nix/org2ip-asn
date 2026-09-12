@@ -31,10 +31,7 @@ org2ip-asn finds the IPv4 ranges and ASNs belonging to an organization.
 
     cat org-names.txt | org2ip-asn 
 ```    
-Writes <first-org>-asns.txt and <first-org>-ipv4.txt:
-
-    ibm-asns.txt    every ASN found
-    ibm-ipv4.txt    every IPv4 range
+Writes <first-org>-asns.txt and <first-org>-ipv4.txt.
 
 Prefixes also go to stdout and progress to stderr, so `| httpx` and `>> file`
 both work.
