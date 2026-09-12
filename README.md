@@ -1,6 +1,7 @@
 # org2ip-asn
 
 org2ip-asn finds the IPv4 ranges and ASNs belonging to an organization.
+
 ![](https://github.com/user-attachments/assets/a2e23e20-60c6-4c10-b81b-42a6e7e65d78)
 
 
@@ -8,7 +9,7 @@ org2ip-asn finds the IPv4 ranges and ASNs belonging to an organization.
 
 1. Run the following command:
 ```
-    go install github.com/blue-pho3nix/org2ip-asn@latest
+go install github.com/blue-pho3nix/org2ip-asn@latest
 ```
 2. Add the following to your `.zshrc` or `.bashrc` 
 ```
