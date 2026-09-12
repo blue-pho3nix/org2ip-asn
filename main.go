@@ -647,6 +647,7 @@ func main() {
 	seenASN := map[string]caidaRow{}
 	seenPfx := map[string]bool{}
 	withPfx := map[string]bool{} // ASNs that actually announce space we kept
+	otherOrg := 0                // ranges dropped as belonging to another org
 	var rows []prefixRow
 
 	/*
@@ -675,7 +676,7 @@ func main() {
 				continue
 			}
 			if seenPfx[p.prefix] {
-				dup++ 
+				dup++ // already collected from another ASN; not worth a line
 				continue
 			}
 			seenPfx[p.prefix] = true
@@ -684,21 +685,13 @@ func main() {
 			added++
 		}
 
-		// Only say something when there is nothing to show, or when ranges
-		// were dropped because they belong to a name that was not passed.
-		var notes []string
-		if added == 0 {
-			notes = append(notes, "no new ranges")
+		// An ASN that found nothing says nothing: no ranges listed under it
+		// is already clear. Ranges dropped as another org's are counted for
+		// the final summary instead.
+		if added > 0 {
+			fmt.Fprintf(os.Stderr, "        %d new\n", added)
 		}
-		if dup > 0 {
-			notes = append(notes, fmt.Sprintf("%d already seen", dup))
-		}
-		if skipped > 0 {
-			notes = append(notes, fmt.Sprintf("%d for another org", skipped))
-		}
-		if len(notes) > 0 {
-			fmt.Fprintf(os.Stderr, "        %s\n", strings.Join(notes, ", "))
-		}
+		otherOrg += skipped
 
 		if added+dup > 0 {
 			withPfx[r.asn] = true
@@ -805,6 +798,10 @@ func main() {
 
 	fmt.Fprintf(os.Stderr, "[*] %d ASNs matched, %d announce IPv4, %d IP ranges\n",
 		len(seenASN), len(asns), len(prefixes))
+	if otherOrg > 0 {
+		fmt.Fprintf(os.Stderr, "[*] %d ranges skipped as another org's; add the name to include them\n",
+			otherOrg)
+	}
 
 	stem := slug(terms[0])
 	writeLines(stem+"-asns.txt", asns)
