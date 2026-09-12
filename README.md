@@ -35,23 +35,23 @@ both work.
 
 ---
 
-## How It works
+## How It Works
 
 - Queries bgp.he.net and CAIDA AS Rank to find organization ASNs and extract their corresponding IP ranges.
 - The organization name must match exactly, and is matched against the organization, not the AS name.
 
 ![](https://github.com/user-attachments/assets/06a4059e-d544-48ee-bf3e-9b6507b44ff3)
 
-## Why several names help
+## Why Multiple Names Help You Out
 
 - A company is registered under many organization names. For example, IBM: `IBM`, `IBM Cloud`, `International Business Machines Corporation`, and more.
 - Each name you pass is looked up separately and the results merged, so list every entity and acquisition you want covered.
 
-## Known gaps
+## Tool... Known Gaps
 
 - Subsidiaries aren't linked automatically. Parent companies and acquisitions must be seeded manually.
 
-## Rate limiting
+## Rate Limiting
 
 - Enforces a 1.5-second delay between bgp.he.net requests to prevent throttling.
 - Automatically detects Cloudflare challenges and backs off/retries.
@@ -63,5 +63,9 @@ both work.
 ### Video
 [![Watch the video](https://i.ytimg.com/vi/SVfFpVig-nw/hqdefault.jpg)](https://www.youtube.com/watch?v=SVfFpVig-nw)
 
-and, claude.ai
+### URLs
+- https://bgp.he.net/
+- https://asrank.caida.org/
+
+and, claude...
 
