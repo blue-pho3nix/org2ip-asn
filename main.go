@@ -4,6 +4,7 @@ org2ip-asn finds the IPv4 ranges and ASNs belonging to an organization.
 Examples:
 	org2ip-asn "IBM"
 	org2ip-asn "IBM" "International Business Machines Corporation"
+	cat org-names.txt | org2ip-asn
 
 Queries bgp.he.net and CAIDA AS Rank for organization ASNs and extracts corresponding IP ranges.
 
@@ -12,6 +13,7 @@ Writes <first-org>-asns.txt and <first-org>-ipv4.txt.
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -122,33 +124,18 @@ func caidaPost(client *http.Client, query string) []byte {
 // ---------------------------------------------------------------- matching
 
 /*
-matches reports whether any needle appears in text as a whole word.
+matches reports whether text is exactly one of the needles, ignoring case and
+surrounding space.
 
-Substring matching breaks on short names: "ibm" sits inside FIBMESH PRIVATE
-LIMITED, LTD SibMediaFon and ibml, none of which are IBM.
+Equality rather than substring: "IBM" must not drag in STARCOM-IBM Business
+Computing Systems, IBM PC User Group or "transit via IBM/Softlayer". Pass each
+subsidiary explicitly to include it.
 */
 func matches(text string, needles []string) bool {
-	low := strings.ToLower(text)
-	alnum := func(b byte) bool {
-		return (b >= 'a' && b <= 'z') || (b >= '0' && b <= '9') || b >= 0x80
-	}
+	low := strings.ToLower(strings.TrimSpace(text))
 	for _, n := range needles {
-		if n == "" {
+		if n == "" || low == n {
 			return true
-		}
-		for start := 0; start < len(low); {
-			i := strings.Index(low[start:], n)
-			if i < 0 {
-				break
-			}
-			i += start
-			end := i + len(n)
-			okBefore := i == 0 || !alnum(low[i-1])
-			okAfter := end >= len(low) || !alnum(low[end])
-			if okBefore && okAfter {
-				return true
-			}
-			start = i + 1
 		}
 	}
 	return false
@@ -416,7 +403,7 @@ type asnsResp struct {
 }
 
 /*
-asnsFromCAIDA searches AS Rank by name, keeping rows whose ORGANISATION
+asnsFromCAIDA searches AS Rank by name, keeping rows whose ORGANIZATION
 matches. asrank.caida.org is a JS app, so this uses the GraphQL endpoint
 behind its by-name search. Failures are non-fatal.
 */
@@ -480,7 +467,7 @@ type orgResp struct {
 }
 
 /*
-orgMembers lists every ASN registered to one CAIDA organisation. A by-name
+orgMembers lists every ASN registered to one CAIDA organization. A by-name
 search only matches the org string CAIDA has on file, so a company recorded
 under several spellings is under-reported without this.
 */
@@ -578,14 +565,42 @@ func printBanner() {
 	fmt.Fprintln(os.Stderr)
 }
 
+/*
+stdinNames reads organization names from a pipe, one per line, so a long list
+can live in a file. Blank lines and # comments are skipped. Returns nothing
+when stdin is a terminal.
+*/
+func stdinNames() []string {
+	info, err := os.Stdin.Stat()
+	if err != nil || info.Mode()&os.ModeCharDevice != 0 {
+		return nil
+	}
+	var out []string
+	sc := bufio.NewScanner(os.Stdin)
+	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	for sc.Scan() {
+		line := strings.TrimSpace(sc.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		out = append(out, line)
+	}
+	return out
+}
+
 func usage() {
 	fmt.Fprint(os.Stderr, `org2ip-asn finds the IPv4 ranges and ASNs belonging to an organization.
 
 Examples:
 	org2ip-asn "IBM"
 	org2ip-asn "IBM" "International Business Machines Corporation"
+	cat org-names.txt | org2ip-asn
 
 Queries bgp.he.net and CAIDA AS Rank for organization ASNs and extracts corresponding IP ranges.
+
+The organization name must match exactly, so "IBM" does not pull in IBM Cloud
+or IBM Deutschland GmbH. Name every entity you want, as arguments or on stdin
+one per line.
 
 Writes <first-org>-asns.txt and <first-org>-ipv4.txt.
 `)
@@ -594,15 +609,21 @@ Writes <first-org>-asns.txt and <first-org>-ipv4.txt.
 
 func main() {
 	printBanner()
-	if len(os.Args) < 2 {
-		usage()
-	}
+
+	names := append([]string{}, os.Args[1:]...)
+	names = append(names, stdinNames()...)
+
 	var terms, needles []string
-	for _, a := range os.Args[1:] {
-		if a = strings.TrimSpace(a); a != "" {
-			terms = append(terms, a)
-			needles = append(needles, strings.ToLower(a))
+	seenTerm := map[string]bool{}
+	for _, a := range names {
+		a = strings.TrimSpace(a)
+		low := strings.ToLower(a)
+		if a == "" || seenTerm[low] {
+			continue
 		}
+		seenTerm[low] = true
+		terms = append(terms, a)
+		needles = append(needles, low)
 	}
 	if len(terms) == 0 {
 		usage()
@@ -631,7 +652,7 @@ func main() {
 		rows := asnsFromCAIDA(client, term, needles)
 		fmt.Fprintf(os.Stderr, "    CAIDA: %d ASNs\n", len(rows))
 
-		// expand every organisation those rows belong to
+		// expand every organization those rows belong to
 		var orgIDs []string
 		seenOrg := map[string]bool{}
 		for _, r := range rows {
@@ -686,7 +707,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "[*] %s (%d/%d)\n", asn, i+1, len(asns))
 		for _, p := range prefixesFromASN(fetch(client, heBase+"/"+asn)) {
 			// A row naming someone else is another company's space announced
-			// by this ASN: AS398037 is Nvidia's but also carries "Code200".
+			// by this ASN. Blank descriptions are kept.
 			if seen[p.prefix] || !(p.desc == "" || matches(p.desc, needles)) {
 				continue
 			}
