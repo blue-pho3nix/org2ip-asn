@@ -56,11 +56,7 @@ both work.
 ## Why Multiple Names Help You Out
 
 - A company is registered under many organization names. For example, IBM: `IBM`, `IBM Cloud`, `International Business Machines Corporation`, and more.
-- Each name you pass is looked up separately and the results merged, so list every entity and acquisition you want covered.
-
-## Tool... Known Gaps
-
-- Subsidiaries aren't linked automatically. Parent companies and acquisitions must be seeded manually.
+- Each name you pass is looked up separately, and the results are merged, so list every entity and acquisition you want covered.
 
 ## Rate Limiting
 
