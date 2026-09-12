@@ -52,7 +52,7 @@ both work.
 ## About
 
 - Queries bgp.he.net and CAIDA AS Rank to find organization ASNs and extracts their IP ranges.
-- Does not save empty ASNs (no IPv4 ranges) to a file. 
+- Does not save empty ASNs (no IPv4 ranges) to the ASN file. 
 
 <details>
   <summary>Image</summary>
