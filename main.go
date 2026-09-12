@@ -6,7 +6,10 @@ Examples:
 	org2ip-asn "IBM" "International Business Machines Corporation"
 	cat org-names.txt | org2ip-asn
 
-Queries bgp.he.net and CAIDA AS Rank for organization ASNs and extracts corresponding IP ranges.
+Queries for organization ASNs and extracts corresponding IP ranges.
+
+The organization name must match exactly, so "IBM" does not pull in IBM Cloud
+or IBM Deutschland GmbH.
 
 Writes <first-org>-asns.txt and <first-org>-ipv4.txt.
 */
@@ -596,11 +599,10 @@ Examples:
 	org2ip-asn "IBM" "International Business Machines Corporation"
 	cat org-names.txt | org2ip-asn
 
-Queries bgp.he.net and CAIDA AS Rank for organization ASNs and extracts corresponding IP ranges.
+Queries for organization ASNs and extracts corresponding IP ranges.
 
 The organization name must match exactly, so "IBM" does not pull in IBM Cloud
-or IBM Deutschland GmbH. Name every entity you want, as arguments or on stdin
-one per line.
+or IBM Deutschland GmbH.
 
 Writes <first-org>-asns.txt and <first-org>-ipv4.txt.
 `)
