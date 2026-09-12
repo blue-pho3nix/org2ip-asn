@@ -7,6 +7,12 @@ org2ip-asn finds the IPv4 ranges and ASNs belonging to an organization.
     go install github.com/blue-pho3nix/org2ip-asn@latest
 
 ## Usage
+1. Go to https://dnschecker.org/ and get your org from an in scope domain
+
+![](https://github.com/user-attachments/assets/eb2871b2-5aa2-4ca5-b7ca-5ec0bbb1cc52)
+
+2. Run `org2ip-asn
+```
     org2ip-asn <org-name>
     org2ip-asn "IBM"
     
@@ -18,7 +24,7 @@ org2ip-asn finds the IPv4 ranges and ASNs belonging to an organization.
     or 
 
     cat org-names.txt | org2ip-asn 
-    
+```    
 Writes <first-org>-asns.txt and <first-org>-ipv4.txt:
 
     ibm-asns.txt    every ASN found
