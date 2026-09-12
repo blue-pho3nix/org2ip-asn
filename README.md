@@ -9,7 +9,13 @@ org2ip-asn finds the IPv4 ranges and ASNs belonging to an organization.
 ## Usage
 1. Go to https://dnschecker.org/ and get your org from an in scope domain
 
+<details>
+  <summary>Image</summary>
+  
 ![](https://github.com/user-attachments/assets/eb2871b2-5aa2-4ca5-b7ca-5ec0bbb1cc52)
+
+</details>
+
 
 2. Run `org2ip-asn
 ```
@@ -40,7 +46,12 @@ both work.
 - Queries bgp.he.net and CAIDA AS Rank to find organization ASNs and extract their corresponding IP ranges.
 - The organization name must match exactly, and is matched against the organization, not the AS name.
 
+<details>
+  <summary>Image</summary>
+
 ![](https://github.com/user-attachments/assets/06a4059e-d544-48ee-bf3e-9b6507b44ff3)
+
+</details>
 
 ## Why Multiple Names Help You Out
 
