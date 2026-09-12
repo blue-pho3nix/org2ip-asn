@@ -646,6 +646,7 @@ func main() {
 
 	seenASN := map[string]caidaRow{}
 	seenPfx := map[string]bool{}
+	withPfx := map[string]bool{} // ASNs that actually announce space we kept
 	var rows []prefixRow
 
 	/*
@@ -654,13 +655,12 @@ func main() {
 		an ASN that only CAIDA knows about gets its ranges straight away, and
 		every prefix is printed as it is found.
 	*/
-	addASN := func(r caidaRow) {
+	addASN := func(r caidaRow) bool {
 		if cur, ok := seenASN[r.asn]; ok {
 			if cur.org == "" && r.org != "" {
 				seenASN[r.asn] = r // keep the richer record
 			}
-			fmt.Fprintf(os.Stderr, "      %-12s %-24s %s (dup)\n", r.asn, r.asnName, r.org)
-			return
+			return false // already fetched; re-fetching would waste a request
 		}
 		seenASN[r.asn] = r
 		fmt.Fprintf(os.Stderr, "      %-12s %-24s %s\n", r.asn, r.asnName, r.org)
@@ -668,8 +668,8 @@ func main() {
 		time.Sleep(delay)
 		added, dup, skipped := 0, 0, 0
 		for _, p := range prefixesFromASN(fetch(client, heBase+"/"+r.asn)) {
-			// A row naming someone else is another company's space announced
-			// by this ASN. Blank descriptions are kept.
+			// A range naming someone else is another company's space
+			// announced by this ASN. Blank descriptions are kept.
 			if !(p.desc == "" || matches(p.desc, needles)) {
 				skipped++
 				continue
@@ -686,6 +686,17 @@ func main() {
 		}
 		fmt.Fprintf(os.Stderr, "        %d new, %d dup, %d not this org\n",
 			added, dup, skipped)
+		if added+dup > 0 {
+			withPfx[r.asn] = true
+		}
+		return true
+	}
+
+	// report returns a one-line tail when a source produced nothing new.
+	report := func(seen int) {
+		if seen > 0 {
+			fmt.Fprintf(os.Stderr, "      %d already seen\n", seen)
+		}
 	}
 
 	for i, term := range terms {
@@ -703,22 +714,30 @@ func main() {
 		u := heBase + "/search?search%5Bsearch%5D=" + url.QueryEscape(term) + "&commit=Search"
 		he := asnsFromHE(fetch(client, u), only)
 		fmt.Fprintf(os.Stderr, "    %s: %d ASNs\n", blue("bgp.he.net"), len(he))
+		dupHE := 0
 		for _, a := range he {
-			addASN(caidaRow{asn: a, org: term})
+			if !addASN(caidaRow{asn: a, org: term}) {
+				dupHE++
+			}
 		}
+		report(dupHE)
 
 		// CAIDA AS Rank
 		caida := asnsFromCAIDA(client, term, only)
 		fmt.Fprintf(os.Stderr, "    %s: %d ASNs\n", blue("CAIDA"), len(caida))
 		var orgIDs []string
 		seenOrg := map[string]bool{}
+		dupCAIDA := 0
 		for _, r := range caida {
-			addASN(r)
+			if !addASN(r) {
+				dupCAIDA++
+			}
 			if r.orgID != "" && !seenOrg[r.orgID] {
 				seenOrg[r.orgID] = true
 				orgIDs = append(orgIDs, r.orgID)
 			}
 		}
+		report(dupCAIDA)
 
 		// every ASN under the organizations those rows belong to
 		for _, id := range orgIDs {
@@ -731,9 +750,13 @@ func main() {
 			}
 			fmt.Fprintf(os.Stderr, "    %s: %d ASNs, %d new\n",
 				blue("org expansion"), len(members), fresh)
+			dupOrg := 0
 			for _, m := range members {
-				addASN(m)
+				if !addASN(m) {
+					dupOrg++
+				}
 			}
+			report(dupOrg)
 		}
 	}
 
@@ -742,8 +765,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	asns := make([]string, 0, len(seenASN))
-	for a := range seenASN {
+	// Only ASNs that actually announce IPv4 space for this organization go in
+	// the file. The rest are registered but announce nothing, or announce only
+	// another company's ranges.
+	asns := make([]string, 0, len(withPfx))
+	for a := range withPfx {
 		asns = append(asns, a)
 	}
 	sort.Slice(asns, func(i, j int) bool { return asnNum(asns[i]) < asnNum(asns[j]) })
@@ -763,7 +789,8 @@ func main() {
 		prefixes = append(prefixes, r.prefix)
 	}
 
-	fmt.Fprintf(os.Stderr, "[*] %d ASNs, %d prefixes\n", len(asns), len(prefixes))
+	fmt.Fprintf(os.Stderr, "[*] %d ASNs matched, %d announce IPv4, %d IP ranges\n",
+		len(seenASN), len(asns), len(prefixes))
 
 	stem := slug(terms[0])
 	writeLines(stem+"-asns.txt", asns)
