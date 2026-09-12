@@ -676,7 +676,7 @@ func main() {
 				continue
 			}
 			if seenPfx[p.prefix] {
-				dup++ // already collected from another ASN; not worth a line
+				dup++ 
 				continue
 			}
 			seenPfx[p.prefix] = true
