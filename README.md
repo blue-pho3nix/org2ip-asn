@@ -33,7 +33,7 @@ org2ip-asn finds the IPv4 ranges and ASNs belonging to an organization.
 ```    
 Writes `<first-org>-asns.txt` and `<first-org>-ipv4.txt`.
 
-Also goes to stdout and progress to stderr, so `| httpx` and `>> file`
+Also goes to stdout and progress to stderr, so `| naabu` and `>> file`
 both work.
 
 ---
