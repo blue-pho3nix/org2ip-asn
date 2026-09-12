@@ -44,7 +44,7 @@ both work.
 
 ## Why several names help
 
-- A company is registered under many organization names: IBM alone appears as `IBM`, `IBM Cloud`, `IBM Deutschland GmbH`, `Compagnie IBM France SAS`, `IBM Singapore Pte Ltd`, and more.
+- A company is registered under many organization names. For example, IBM: `IBM`, `IBM Cloud`, `International Business Machines Corporation`, and more.
 - Each name you pass is looked up separately and the results merged, so list every entity and acquisition you want covered.
 
 ## Known gaps
