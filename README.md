@@ -49,10 +49,9 @@ both work.
 
 ---
 
-## How It Works
+## About
 
-- Queries bgp.he.net and CAIDA AS Rank to find organization ASNs and extract their corresponding IP ranges.
-- The organization name must match exactly, and is matched against the organization, not the AS name.
+- Queries bgp.he.net and CAIDA AS Rank to find organization ASNs and extracts their IP ranges.
 - Does not save empty ASNs (no IPv4 ranges) to a file. 
 
 <details>
@@ -65,7 +64,7 @@ both work.
 ## Why Multiple Names Help You Out
 
 - A company is registered under many organization names. For example, IBM: `IBM`, `IBM Cloud`, `International Business Machines Corporation`, other acquisitions, and more.
-- Each name you pass is looked up separately, and the results are merged, so list every entity and acquisition you want covered.
+- Each name you pass is looked up separately, so list every entity and acquisition you want covered.
 
 ## Rate Limiting
 
