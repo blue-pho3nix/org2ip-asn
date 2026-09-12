@@ -663,7 +663,7 @@ func main() {
 			return false // already fetched; re-fetching would waste a request
 		}
 		seenASN[r.asn] = r
-		fmt.Fprintf(os.Stderr, "      %-12s %-24s %s\n", r.asn, r.asnName, r.org)
+		fmt.Fprintf(os.Stderr, "      %s %s\n", r.asn, r.asnName)
 
 		time.Sleep(delay)
 		added, dup, skipped := 0, 0, 0
@@ -675,8 +675,7 @@ func main() {
 				continue
 			}
 			if seenPfx[p.prefix] {
-				fmt.Fprintf(os.Stderr, "        %-20s (dup)\n", p.prefix)
-				dup++
+				dup++ // already collected from another ASN; not worth a line
 				continue
 			}
 			seenPfx[p.prefix] = true
@@ -684,8 +683,23 @@ func main() {
 			fmt.Fprintf(os.Stderr, "        %s\n", p.prefix)
 			added++
 		}
-		fmt.Fprintf(os.Stderr, "        %d new, %d dup, %d not this org\n",
-			added, dup, skipped)
+
+		// Only say something when there is nothing to show, or when ranges
+		// were dropped because they belong to a name that was not passed.
+		var notes []string
+		if added == 0 {
+			notes = append(notes, "no new ranges")
+		}
+		if dup > 0 {
+			notes = append(notes, fmt.Sprintf("%d already seen", dup))
+		}
+		if skipped > 0 {
+			notes = append(notes, fmt.Sprintf("%d for another org", skipped))
+		}
+		if len(notes) > 0 {
+			fmt.Fprintf(os.Stderr, "        %s\n", strings.Join(notes, ", "))
+		}
+
 		if added+dup > 0 {
 			withPfx[r.asn] = true
 		}
