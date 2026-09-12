@@ -55,7 +55,7 @@ both work.
 
 ## Why Multiple Names Help You Out
 
-- A company is registered under many organization names. For example, IBM: `IBM`, `IBM Cloud`, `International Business Machines Corporation`, and more.
+- A company is registered under many organization names. For example, IBM: `IBM`, `IBM Cloud`, `International Business Machines Corporation`, other acquisitions, and more.
 - Each name you pass is looked up separately, and the results are merged, so list every entity and acquisition you want covered.
 
 ## Rate Limiting
