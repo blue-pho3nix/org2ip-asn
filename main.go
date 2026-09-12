@@ -126,14 +126,6 @@ func caidaPost(client *http.Client, query string) []byte {
 
 // ---------------------------------------------------------------- matching
 
-/*
-matches reports whether text is exactly one of the needles, ignoring case and
-surrounding space.
-
-Equality rather than substring: "IBM" must not drag in STARCOM-IBM Business
-Computing Systems, IBM PC User Group or "transit via IBM/Softlayer". Pass each
-subsidiary explicitly to include it.
-*/
 func matches(text string, needles []string) bool {
 	low := strings.ToLower(strings.TrimSpace(text))
 	for _, n := range needles {
@@ -187,7 +179,8 @@ func isBoundary(b byte) bool {
 	return b == ' ' || b == '>' || b == '/' || b == '\t' || b == '\n' || b == '\r'
 }
 
-// elements returns the inner HTML of each <tag ...>...</tag> block in s.
+/* find every <tr>…</tr> (or whatever tag you ask for) in the HTML 
+and return what's between the opening and closing tags of each. */
 func elements(s, tag string) []string {
 	low := lowered(s)
 	open, closing := "<"+tag, "</"+tag
@@ -220,7 +213,7 @@ func elements(s, tag string) []string {
 	return out
 }
 
-// stripTags removes markup, unescapes entities and collapses whitespace.
+// stripTags removes markup, unescapes entities, and collapses whitespace.
 func stripTags(s string) string {
 	var b strings.Builder
 	depth := 0
@@ -298,7 +291,7 @@ func links(s string) []link {
 	return out
 }
 
-// ---------------------------------------------------------------- prefixes
+// ---------------------------------------------------------------- ranges
 
 var reserved = func() []*net.IPNet {
 	blocks := []string{
@@ -335,7 +328,7 @@ type prefixRow struct {
 	ipnet  *net.IPNet
 }
 
-// prefixesFromASN pulls public IPv4 prefixes off an ASN's he.net page.
+// prefixesFromASN pulls public IPv4 ranges from ASN's bgp.he.net page.
 func prefixesFromASN(page string) []prefixRow {
 	var out []prefixRow
 	seen := map[string]bool{}
@@ -360,9 +353,9 @@ func prefixesFromASN(page string) []prefixRow {
 	return out
 }
 
-// ------------------------------------------------------------------ he.net
+// ------------------------------------------------------------------ bgp.he.net ASNs
 
-// asnsFromHE pulls ASNs off a he.net search page whose Description matches.
+// asnsFromHE pulls ASNs off a bgp.he.net search page whose description matches.
 func asnsFromHE(page string, needles []string) []string {
 	var out []string
 	for _, row := range elements(page, "tr") {
@@ -381,7 +374,7 @@ func asnsFromHE(page string, needles []string) []string {
 	return out
 }
 
-// ------------------------------------------------------------------- caida
+// ------------------------------------------------------------------- caida ASNs
 
 type caidaRow struct{ asn, asnName, org, orgID string }
 
@@ -405,11 +398,8 @@ type asnsResp struct {
 	} `json:"errors"`
 }
 
-/*
-asnsFromCAIDA searches AS Rank by name, keeping rows whose ORGANIZATION
-matches. asrank.caida.org is a JS app, so this uses the GraphQL endpoint
-behind its by-name search. Failures are non-fatal.
-*/
+
+// asnsFromCAIDA searches AS Rank by name, keeping rows whose organization matches.
 func asnsFromCAIDA(client *http.Client, term string, needles []string) []caidaRow {
 	var out []caidaRow
 	name, _ := json.Marshal(term)
@@ -469,11 +459,8 @@ type orgResp struct {
 	} `json:"errors"`
 }
 
-/*
-orgMembers lists every ASN registered to one CAIDA organization. A by-name
-search only matches the org string CAIDA has on file, so a company recorded
-under several spellings is under-reported without this.
-*/
+// orgMembers returns every ASN owned by one CAIDA organization, including
+// ones a name search misses, like SOFTLAYER under IBM.
 func orgMembers(client *http.Client, orgID string) []caidaRow {
 	id, _ := json.Marshal(orgID)
 	q := fmt.Sprintf(`{ organization(orgId: %s) { orgName members { asns `+
@@ -514,7 +501,7 @@ func slug(text string) string {
 	}
 	parts := strings.FieldsFunc(b.String(), func(r rune) bool { return r == '-' })
 	out := strings.Join(parts, "-")
-	if len(out) > 40 { // trim on a separator, not mid-word
+	if len(out) > 40 { 
 		out = out[:40]
 		if k := strings.LastIndexByte(out, '-'); k > 0 {
 			out = out[:k]
@@ -549,10 +536,6 @@ var banner = []string{
 	"\033[0;34;40m▀▀▀▀\033[0;37;40m \033[0;34;40m▀▀ ▀\033[0;37;40m \033[0;34;40m▀▀▀▀▀\033[0;37;40m \033[0;34;40m▀▀▀▀\033[0;37;40m \033[0;34;40m▀▀\033[0;37;40m \033[0;34;40m▀▀  \033[0;37;40m      \033[0;34;40m▀▀ ▀\033[0;37;40m \033[0;34;40m▀▀▀ \033[0;37;40m \033[0;34;40m▀▀ ▀\033[0m",
 }
 
-/*
-useColor is true only when stderr is a terminal and NO_COLOR is unset, so
-redirecting output to a file leaves no escape sequences in it.
-*/
 var useColor = func() bool {
 	if os.Getenv("NO_COLOR") != "" {
 		return false
@@ -561,7 +544,6 @@ var useColor = func() bool {
 	return err == nil && info.Mode()&os.ModeCharDevice != 0
 }()
 
-// blue highlights a label, or returns it unchanged when colour is off.
 func blue(s string) string {
 	if !useColor {
 		return s
@@ -579,11 +561,7 @@ func printBanner() {
 	fmt.Fprintln(os.Stderr)
 }
 
-/*
-stdinNames reads organization names from a pipe, one per line, so a long list
-can live in a file. Blank lines and # comments are skipped. Returns nothing
-when stdin is a terminal.
-*/
+// stdinNames reads organization names one per line. 
 func stdinNames() []string {
 	info, err := os.Stdin.Stat()
 	if err != nil || info.Mode()&os.ModeCharDevice != 0 {
@@ -646,32 +624,35 @@ func main() {
 
 	seenASN := map[string]caidaRow{}
 	seenPfx := map[string]bool{}
-	withPfx := map[string]bool{} // ASNs that actually announce space we kept
-	otherOrg := 0                // ranges dropped as belonging to another org
+	withPfx := map[string]bool{} 
+	otherOrg := map[string]int{}  
 	var rows []prefixRow
 
-	/*
-		addASN records an ASN and, if it is new, immediately fetches its
-		prefixes from he.net. Doing it here rather than in a second pass means
-		an ASN that only CAIDA knows about gets its ranges straight away, and
-		every prefix is printed as it is found.
-	*/
+    // addASN records an ASN and, if it is new, fetches its IP ranges from bgp.he.net.
 	addASN := func(r caidaRow) bool {
 		if cur, ok := seenASN[r.asn]; ok {
-			if cur.org == "" && r.org != "" {
-				seenASN[r.asn] = r // keep the richer record
+			if cur.asnName == "" && r.asnName != "" {
+				seenASN[r.asn] = r 
 			}
-			return false // already fetched; re-fetching would waste a request
+			return false 
 		}
 		seenASN[r.asn] = r
-		fmt.Fprintf(os.Stderr, "      %s %s\n", r.asn, r.asnName)
+
+		parts := []string{r.asn}
+		if r.asnName != "" {
+			parts = append(parts, r.asnName)
+		}
+		if r.org != "" {
+			parts = append(parts, r.org)
+		}
+		fmt.Fprintf(os.Stderr, "      %s\n", strings.Join(parts, "  "))
 
 		time.Sleep(delay)
 		added, dup, skipped := 0, 0, 0
 		for _, p := range prefixesFromASN(fetch(client, heBase+"/"+r.asn)) {
-			// A range naming someone else is another company's space
-			// announced by this ASN. Blank descriptions are kept.
+
 			if !(p.desc == "" || matches(p.desc, needles)) {
+				otherOrg[p.desc]++
 				skipped++
 				continue
 			}
@@ -685,21 +666,15 @@ func main() {
 			added++
 		}
 
-		// An ASN that found nothing says nothing: no ranges listed under it
-		// is already clear. Ranges dropped as another org's are counted for
-		// the final summary instead.
 		if added > 0 {
 			fmt.Fprintf(os.Stderr, "        %d new\n", added)
 		}
-		otherOrg += skipped
-
 		if added+dup > 0 {
 			withPfx[r.asn] = true
 		}
 		return true
 	}
 
-	// report returns a one-line tail when a source produced nothing new.
 	report := func(seen int) {
 		if seen > 0 {
 			fmt.Fprintf(os.Stderr, "      %d already seen\n", seen)
@@ -711,10 +686,7 @@ func main() {
 			time.Sleep(delay)
 		}
 		fmt.Fprintf(os.Stderr, "[*] searching %q\n", term)
-
-		// Filter each page by this term alone. Matching against every name
-		// would report the same total on every search, since he.net returns
-		// much the same rows whichever spelling is queried.
+		
 		only := needles[i : i+1]
 
 		// bgp.he.net
@@ -746,7 +718,6 @@ func main() {
 		}
 		report(dupCAIDA)
 
-		// every ASN under the organizations those rows belong to
 		for _, id := range orgIDs {
 			members := orgMembers(client, id)
 			fresh := 0
@@ -772,9 +743,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Only ASNs that actually announce IPv4 space for this organization go in
-	// the file. The rest are registered but announce nothing, or announce only
-	// another company's ranges.
+	// Only ASNs that actually announce IPv4 space for this organization go in the file. 
 	asns := make([]string, 0, len(withPfx))
 	for a := range withPfx {
 		asns = append(asns, a)
@@ -798,9 +767,28 @@ func main() {
 
 	fmt.Fprintf(os.Stderr, "[*] %d ASNs matched, %d announce IPv4, %d IP ranges\n",
 		len(seenASN), len(asns), len(prefixes))
-	if otherOrg > 0 {
-		fmt.Fprintf(os.Stderr, "[*] %d ranges skipped as another org's; add the name to include them\n",
-			otherOrg)
+	if len(otherOrg) > 0 {
+		type skip struct {
+			desc string
+			n    int
+		}
+		list := make([]skip, 0, len(otherOrg))
+		total := 0
+		for d, n := range otherOrg {
+			list = append(list, skip{d, n})
+			total += n
+		}
+		sort.Slice(list, func(i, j int) bool {
+			if list[i].n != list[j].n {
+				return list[i].n > list[j].n
+			}
+			return list[i].desc < list[j].desc
+		})
+		fmt.Fprintf(os.Stderr, "[*] %d ranges skipped under %d other names:\n",
+			total, len(list))
+		for _, k := range list {
+			fmt.Fprintf(os.Stderr, "      %4d  %s\n", k.n, k.desc)
+		}
 	}
 
 	stem := slug(terms[0])
