@@ -75,9 +75,6 @@ both work.
 
 ## Resources
 
-### Video
-[![Watch the video](https://i.ytimg.com/vi/SVfFpVig-nw/hqdefault.jpg)](https://www.youtube.com/watch?v=SVfFpVig-nw)
-
 ### URLs
 - https://bgp.he.net/
 - https://asrank.caida.org/
